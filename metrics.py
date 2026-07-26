@@ -189,6 +189,35 @@ def build_14day_timeline(
     return combined.sort_values(["location", "target_date"])
 
 
+def hourly_actual_for_day(current_weather: pd.DataFrame, location: str, target_date) -> pd.DataFrame:
+    """Actual observed hourly readings for a past day/location, used to
+    overlay 'when did it actually rain' on the hourly detail view."""
+    empty = pd.DataFrame(columns=["fetched_at", "temp_c", "rain_1h"])
+    if current_weather.empty:
+        return empty
+    cw = prep_current_weather(current_weather)
+    day_df = cw[(cw["location"] == location) & (cw["local_date"] == target_date)]
+    if day_df.empty:
+        return empty
+    return day_df[["fetched_at", "temp_c", "rain_1h"]].sort_values("fetched_at").reset_index(drop=True)
+
+
+def daily_detail_for_day(daily: pd.DataFrame, location: str, target_date) -> "pd.Series | None":
+    """Single daily_forecast row (latest fetch) for a location/day -- this is
+    the only granularity that exists beyond ~48h out, since hourly_forecast
+    doesn't reach that far. Used as the fallback when a user clicks a
+    far-future day that has no hourly breakdown to show.
+    """
+    if daily.empty:
+        return None
+    df = daily.copy()
+    df["target_date"] = _epoch_to_local(df["forecast_dt"]).dt.date
+    row = df[(df["location"] == location) & (df["target_date"] == target_date)]
+    if row.empty:
+        return None
+    return row.iloc[0]
+
+
 def hourly_detail_for_day(
     hourly: pd.DataFrame, location: str, target_date, lead_hours: float | None = None
 ) -> pd.DataFrame:
