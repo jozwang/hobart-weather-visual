@@ -282,7 +282,33 @@ with tab_rank:
     else:
         ranking = microclimate_ranking(cw_all)
         st.dataframe(ranking, use_container_width=True, hide_index=True)
-        st.caption("Higher volatility score = more day-to-day swing in temp/humidity.")
+        st.caption("Sorted highest to lowest volatility \u2014 top row swings around the most day to day.")
+
+    with st.expander("How this is calculated"):
+        st.markdown(
+            """
+Built from **actual observed readings** in `current_weather` over the last
+10 days (not forecasts).
+
+```
+temp_std          = std dev of temperature readings for that location
+humidity_std      = std dev of humidity readings for that location
+volatility_score  = temp_std + (humidity_std / 10)
+```
+
+Humidity is divided by 10 because it swings across a much wider numeric
+range (tens of percentage points) than temperature (a few degrees) \u2014
+without scaling it down, humidity would dominate the score regardless of
+how the temperature actually behaves. This is a reasonable starting
+weighting, not a scientifically derived one; worth revisiting once you
+have more history to check whether it separates the three locations in a
+way that matches what you'd expect.
+
+**Caveat:** with only a short collection history, this is noisy \u2014 a
+handful of days isn't enough to distinguish real microclimate differences
+from random variation.
+"""
+        )
 
     st.subheader("Forecast stability index")
     hourly_all = get_hourly_forecast_window(days_back=10)
@@ -292,6 +318,31 @@ with tab_rank:
         stability = forecast_stability_index(hourly_all)
         st.dataframe(stability, use_container_width=True, hide_index=True)
         st.caption("100 = predictions barely change between forecast runs; lower = forecasts revised more.")
+
+    with st.expander("How this is calculated"):
+        st.markdown(
+            """
+Built from `hourly_forecast` only \u2014 this measures forecast *consistency*,
+not forecast *accuracy*. It answers: "how much does the prediction for a
+given hour change as the collector re-forecasts it, run after run?" \u2014 a
+separate question from whether the forecast turned out to be right.
+
+```
+For each target hour, across successive forecast fetches:
+    pop_delta          = |this fetch's rain probability - the previous fetch's|
+    avg_pop_revision    = mean(pop_delta) for that location
+
+Then, scaled across the three locations:
+    stability_index = 100 x (1 - avg_pop_revision / worst_location's avg_pop_revision)
+```
+
+**Important:** this score is *relative between your three locations*, not
+an absolute grade. Whichever location has the smallest average revision
+always scores 100 \u2014 even if, in absolute terms, all three locations'
+forecasts are jumpy. Use it to compare locations against each other, not
+as a fixed universal benchmark.
+"""
+        )
 
 # -------------------------------------------------------------- Summary --
 with tab_summary:
